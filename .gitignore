@@ -1,0 +1,19 @@
+build/
+build-*/
+.cache/
+compile_commands.json
+
+# editor / OS
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*~
+
+# ccache / clangd
+.ccache/
+.clangd/
+
+# tests
+tests/integration/*.tmp
+*.ll.tmp
