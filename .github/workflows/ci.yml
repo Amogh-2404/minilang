@@ -1,0 +1,69 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.os }} / ${{ matrix.build_type }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-14]
+        build_type: [Debug, Release]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install LLVM 18 + ninja + GoogleTest (ubuntu)
+        if: matrix.os == 'ubuntu-22.04'
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo gpg --dearmor -o /usr/share/keyrings/llvm.gpg
+          echo "deb [signed-by=/usr/share/keyrings/llvm.gpg] http://apt.llvm.org/jammy/ llvm-toolchain-jammy-18 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm-18.list
+          sudo apt-get update
+          sudo apt-get install -y llvm-18-dev libllvm18 ninja-build cmake libgtest-dev
+          # GoogleTest on Ubuntu's apt ships only sources by default; build them.
+          sudo cmake -S /usr/src/googletest -B /tmp/gtest-build
+          sudo cmake --build /tmp/gtest-build --target install --parallel
+
+      - name: install LLVM 18 + ninja + GoogleTest (macOS)
+        if: matrix.os == 'macos-14'
+        run: |
+          brew install llvm@18 ninja googletest
+
+      - name: configure
+        run: |
+          if [[ "$RUNNER_OS" == "macOS" ]]; then
+            LLVM_DIR_VAL="$(brew --prefix llvm@18)/lib/cmake/llvm"
+            GTEST_DIR_VAL="$(brew --prefix googletest)/lib/cmake/GTest"
+          else
+            LLVM_DIR_VAL="/usr/lib/llvm-18/lib/cmake/llvm"
+            GTEST_DIR_VAL=""
+          fi
+          ARGS="-G Ninja -B build -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -DLLVM_DIR=$LLVM_DIR_VAL"
+          if [[ -n "$GTEST_DIR_VAL" ]]; then
+            ARGS="$ARGS -DGTest_DIR=$GTEST_DIR_VAL"
+          fi
+          cmake $ARGS
+
+      - name: build
+        run: ninja -C build
+
+      - name: test
+        run: ./tests/run_all.sh
+
+      - name: examples smoke
+        run: |
+          for f in examples/*.ml; do
+            echo "=== $f ==="
+            ./build/minilang -jit < "$f"
+          done
