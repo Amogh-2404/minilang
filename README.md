@@ -139,7 +139,7 @@ minilang [flags] < source.ml
 - AOT compilation to an object file. v0.1 is JIT-only (or `-emit-llvm`).
 - Aggressive constant folding -- LLVM's `IRBuilder` already folds at
   build time, and `InstCombine` handles the rest. Our `ConstFoldPass` is
-  the small, readable version.
+  the small readable version.
 - Production-grade LICM (alias analysis, sinking, exception safety).
   LLVM's `LICM.cpp` is ~1000 lines; ours is ~50.
 
